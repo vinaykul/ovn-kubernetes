@@ -85,27 +85,29 @@ func calculateMasterSwitchNetwork(clusterNetwork string, hostSubnetLength uint32
 
 // SetupMaster calls the external script to create the switch and central routers for the network
 func (cluster *OvnClusterController) SetupMaster(masterNodeName string, masterSwitchNetwork string) error {
-	err := util.StartOVS()
-	if err != nil {
-		return err
+	if (!cluster.DaemonsetMode) {
+		err := util.StartOVS()
+		if err != nil {
+			return err
+		}
+
+		err = util.StartOvnNorthd()
+		if err != nil {
+			return err
+		}
+
+		// Set up north/southbound API authentication
+		err = cluster.NorthDBServerAuth.SetDBServerAuth("ovn-nbctl", "northbound")
+		if err != nil {
+			return err
+		}
+		err = cluster.SouthDBServerAuth.SetDBServerAuth("ovn-sbctl", "southbound")
+		if err != nil {
+			return err
+		}
 	}
 
-	err = util.StartOvnNorthd()
-	if err != nil {
-		return err
-	}
-
-	// Set up north/southbound API authentication
-	err = cluster.NorthDBServerAuth.SetDBServerAuth("ovn-nbctl", "northbound")
-	if err != nil {
-		return err
-	}
-	err = cluster.SouthDBServerAuth.SetDBServerAuth("ovn-sbctl", "southbound")
-	if err != nil {
-		return err
-	}
-
-	if err := setupOVN(masterNodeName, cluster.KubeServer, cluster.Token, cluster.NorthDBClientAuth, cluster.SouthDBClientAuth); err != nil {
+	if err := setupOVN(masterNodeName, cluster.KubeServer, cluster.Token, cluster.NorthDBClientAuth, cluster.SouthDBClientAuth, cluster.DaemonsetMode); err != nil {
 		return err
 	}
 

@@ -35,6 +35,7 @@ type OvnClusterController struct {
 	GatewayNextHop   string
 	GatewaySpareIntf bool
 	NodePortEnable   bool
+	DaemonsetMode    bool
 
 	NorthDBServerAuth *OvnDBAuth
 	NorthDBClientAuth *OvnDBAuth
@@ -67,30 +68,41 @@ func NewClusterController(kubeClient kubernetes.Interface, wf *factory.WatchFact
 	}
 }
 
-func setupOVN(nodeName, kubeServer, kubeToken string, northClientAuth, southClientAuth *OvnDBAuth) error {
-	if _, err := url.Parse(kubeServer); err != nil {
-		return fmt.Errorf("error parsing k8s server %q: %v", kubeServer, err)
-	}
+func setupOVN(nodeName, kubeServer, kubeToken string, northClientAuth, southClientAuth *OvnDBAuth, daemonsetMode bool) error {
+	var args []string
+	if (!daemonsetMode) {
+		if _, err := url.Parse(kubeServer); err != nil {
+			return fmt.Errorf("error parsing k8s server %q: %v", kubeServer, err)
+		}
 
-	nodeIP, err := netutils.GetNodeIP(nodeName)
-	if err != nil {
-		return fmt.Errorf("Failed to obtain local IP: %v", err)
-	}
+		nodeIP, err := netutils.GetNodeIP(nodeName)
+		if err != nil {
+			return fmt.Errorf("Failed to obtain local IP: %v", err)
+		}
 
-	args := []string{
-		"set",
-		"Open_vSwitch",
-		".",
-		"external_ids:ovn-encap-type=geneve",
-		fmt.Sprintf("external_ids:ovn-encap-ip=%s", nodeIP),
-		fmt.Sprintf("external_ids:k8s-api-server=\"%s\"", kubeServer),
-		fmt.Sprintf("external_ids:k8s-api-token=\"%s\"", kubeToken),
-	}
-	if northClientAuth.scheme != OvnDBSchemeUnix {
-		args = append(args, fmt.Sprintf("external_ids:ovn-nb=\"%s\"", northClientAuth.GetURL()))
-	}
-	if southClientAuth.scheme != OvnDBSchemeUnix {
-		args = append(args, fmt.Sprintf("external_ids:ovn-remote=\"%s\"", southClientAuth.GetURL()))
+		args = []string{
+			"set",
+			"Open_vSwitch",
+			".",
+			"external_ids:ovn-encap-type=geneve",
+			fmt.Sprintf("external_ids:ovn-encap-ip=%s", nodeIP),
+			fmt.Sprintf("external_ids:k8s-api-server=\"%s\"", kubeServer),
+			fmt.Sprintf("external_ids:k8s-api-token=\"%s\"", kubeToken),
+		}
+		if northClientAuth.scheme != OvnDBSchemeUnix {
+			args = append(args, fmt.Sprintf("external_ids:ovn-nb=\"%s\"", northClientAuth.GetURL()))
+		}
+		if southClientAuth.scheme != OvnDBSchemeUnix {
+			args = append(args, fmt.Sprintf("external_ids:ovn-remote=\"%s\"", southClientAuth.GetURL()))
+		}
+	} else {
+                args = []string{
+                        "set",
+                        "Open_vSwitch",
+                        ".",
+                        fmt.Sprintf("external_ids:k8s-api-server=\"%s\"", kubeServer),
+                        fmt.Sprintf("external_ids:k8s-api-token=\"%s\"", kubeToken),
+                }
 	}
 
 	out, err := exec.Command("ovs-vsctl", args...).CombinedOutput()
@@ -102,7 +114,7 @@ func setupOVN(nodeName, kubeServer, kubeToken string, northClientAuth, southClie
 	config.FetchConfig()
 
 	// Update config globals that OVN exec utils use
-	northClientAuth.SetConfig()
+	northClientAuth.SetConfig(daemonsetMode)
 
 	return nil
 }
@@ -187,9 +199,11 @@ func (a *OvnDBAuth) GetURL() string {
 }
 
 // SetConfig sets global config variables from an OvnDBAuth object
-func (a *OvnDBAuth) SetConfig() {
+func (a *OvnDBAuth) SetConfig(daemonsetMode bool) {
 	config.Scheme = string(a.scheme)
-	config.OvnNB = a.GetURL()
+	if (!daemonsetMode) {
+		config.OvnNB = a.GetURL()
+	}
 	if a.scheme == "ssl" {
 		config.NbctlPrivateKey = a.PrivKey
 		config.NbctlCertificate = a.Cert

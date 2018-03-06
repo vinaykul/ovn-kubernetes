@@ -92,6 +92,10 @@ func main() {
 	nodePortEnable := flag.Bool("nodeport", false,
 		"Setup nodeport based ingress on gateways.")
 
+	// Enable daemonset mode
+	daemonsetMode := flag.Bool("daemonset", false,
+		"Start ovnkube in daemonset mode.")
+
 	flag.Parse()
 
 	// Process log flags
@@ -147,6 +151,7 @@ func main() {
 		clusterController.GatewayIntf = *gatewayIntf
 		clusterController.GatewayNextHop = *gatewayNextHop
 		clusterController.GatewaySpareIntf = *gatewaySpareIntf
+		clusterController.DaemonsetMode = *daemonsetMode
 		_, clusterController.ClusterIPNet, err = net.ParseCIDR(*clusterSubnet)
 		if err != nil {
 			panic(err.Error)

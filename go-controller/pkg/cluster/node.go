@@ -61,7 +61,7 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 
 	logrus.Infof("Node %s ready for ovn initialization with subnet %s", node.Name, subnet.String())
 
-	if err = setupOVN(name, cluster.KubeServer, cluster.Token, cluster.NorthDBClientAuth, cluster.SouthDBClientAuth); err != nil {
+	if err = setupOVN(name, cluster.KubeServer, cluster.Token, cluster.NorthDBClientAuth, cluster.SouthDBClientAuth, cluster.DaemonsetMode); err != nil {
 		return err
 	}
 
@@ -89,7 +89,7 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 	}
 
 	// Install the CNI config file after all initialization is done
-	if runtime.GOOS != windowsOS {
+	if (!cluster.DaemonsetMode && (runtime.GOOS != windowsOS)) {
 		// MkdirAll() returns no error if the path already exists
 		err = os.MkdirAll(config.CniConfPath, os.ModeDir)
 		if err != nil {

@@ -208,15 +208,19 @@ func RunOVNNbctlWithTimeout(timeout int, args ...string) (string, string,
 			fmt.Sprintf("--private-key=%s", config.NbctlPrivateKey),
 			fmt.Sprintf("--certificate=%s", config.NbctlCertificate),
 			fmt.Sprintf("--bootstrap-ca-cert=%s", config.NbctlCACert),
-			fmt.Sprintf("--db=%s", config.OvnNB),
 			fmt.Sprintf("--timeout=%d", timeout),
+		}
+		if (len(config.OvnNB) > 0) {
+			cmdArgs = append(cmdArgs, fmt.Sprintf("--db=%s", config.OvnNB))
 		}
 		cmdArgs = append(cmdArgs, args...)
 		cmd = exec.Command(cmdPath, cmdArgs...)
 	} else {
 		cmdArgs := []string{
-			fmt.Sprintf("--db=%s", config.OvnNB),
 			fmt.Sprintf("--timeout=%d", timeout),
+		}
+		if (len(config.OvnNB) > 0) {
+			cmdArgs = append(cmdArgs, fmt.Sprintf("--db=%s", config.OvnNB))
 		}
 		cmdArgs = append(cmdArgs, args...)
 		cmd = exec.Command(cmdPath, cmdArgs...)
