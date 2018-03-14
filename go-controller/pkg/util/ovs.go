@@ -208,15 +208,19 @@ func RunOVNNbctlWithTimeout(timeout int, args ...string) (string, string,
 			fmt.Sprintf("--private-key=%s", config.OvnNorth.ClientAuth.PrivKey),
 			fmt.Sprintf("--certificate=%s", config.OvnNorth.ClientAuth.Cert),
 			fmt.Sprintf("--bootstrap-ca-cert=%s", config.OvnNorth.ClientAuth.CACert),
-			fmt.Sprintf("--db=%s", config.OvnNorth.ClientAuth.GetURL()),
-			fmt.Sprintf("--timeout=%d", timeout),
+		}
+		// TODO: refactor to eliminate dup in this if / else blocks
+		if (!config.DaemonsetMode) {
+			cmdArgs = append(cmdArgs, fmt.Sprintf("--db=%s", config.OvnNorth.ClientAuth.GetURL()))
 		}
 		cmdArgs = append(cmdArgs, args...)
 		cmd = exec.Command(cmdPath, cmdArgs...)
 	} else {
 		cmdArgs := []string{
-			fmt.Sprintf("--db=%s", config.OvnNorth.ClientAuth.GetURL()),
 			fmt.Sprintf("--timeout=%d", timeout),
+		}
+		if (!config.DaemonsetMode) {
+			cmdArgs = append(cmdArgs, fmt.Sprintf("--db=%s", config.OvnNorth.ClientAuth.GetURL()))
 		}
 		cmdArgs = append(cmdArgs, args...)
 		cmd = exec.Command(cmdPath, cmdArgs...)

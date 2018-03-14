@@ -80,6 +80,12 @@ func main() {
 			Name:  "nodeport",
 			Usage: "Setup nodeport based ingress on gateways.",
 		},
+
+		// daemonset mode
+		cli.BoolFlag{
+			Name:  "daemonset",
+			Usage: "Start ovnkube in daemonset mode.",
+		},
 	}, config.Flags...)
 	c.Action = func(c *cli.Context) error {
 		return runOvnKube(c)
@@ -111,6 +117,7 @@ func runOvnKube(ctx *cli.Context) error {
 	master := ctx.String("init-master")
 	node := ctx.String("init-node")
 	nodePortEnable := ctx.Bool("nodeport")
+	config.DaemonsetMode = ctx.Bool("daemonset")
 
 	if master != "" || node != "" {
 		clusterController := ovncluster.NewClusterController(clientset, factory)

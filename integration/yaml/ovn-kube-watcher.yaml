@@ -1,0 +1,122 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ovn-kube-watcher-config
+  namespace: kube-system
+data:
+  #cluster cidr
+  k8s_cluster_cidr: "<CONTAINER_NETWORK_CIDR>"
+
+---
+
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: ovn-kube-watcher
+  namespace: kube-system
+  labels:
+    k8s-app: ovn-kube-watcher
+spec:
+  selector:
+    matchLabels:
+      name: ovn-kube-watcher
+  template:
+    metadata:
+      labels:
+        name: ovn-kube-watcher
+    spec:
+      hostNetwork: true
+      serviceAccountName: ovn-kube-watcher-sa
+      nodeSelector:
+        kubernetes.io/role: "master"
+      containers:
+      - name: watcher
+        image: vmware/photon-2.0-ovnkube:v0.1.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: OVN_K8S_CLUSTER_CIDR
+          valueFrom:
+            configMapKeyRef:
+              name: ovn-kube-watcher-config
+              key: k8s_cluster_cidr
+        - name: OVN_K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        command: ["/root/watcher.bash"]
+        volumeMounts:
+          - mountPath: /var/lib/kubelet
+            name: kubelet
+      volumes:
+      - name: kubelet
+        hostPath:
+          path: /var/lib/kubelet
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: ovn-kube-watcher-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ovn-kube-watcher-cr
+subjects:
+- kind: ServiceAccount
+  name: ovn-kube-watcher-sa
+  namespace: kube-system
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: ovn-kube-watcher-cr
+rules:
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    verbs:
+    - get
+    - watch
+    - list
+    - patch
+    - update
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    - services
+    - endpoints
+    - namespaces
+    verbs:
+    - get
+    - watch
+    - list
+  - apiGroups:
+    - extensions
+    resources:
+    - networkpolicies
+    verbs:
+    - get
+    - watch
+    - list
+  - apiGroups:
+    - networking.k8s.io
+    resources:
+    - networkpolicies
+    verbs:
+    - get
+    - watch
+    - list
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ovn-kube-watcher-sa
+  namespace: kube-system
+
+---

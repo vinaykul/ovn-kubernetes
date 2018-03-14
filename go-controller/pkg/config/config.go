@@ -45,6 +45,9 @@ var (
 
 	// OvnSouth holds southbound OVN database client and server authentication and location details
 	OvnSouth OvnAuthConfig
+
+	// Daemonset mode
+	DaemonsetMode = false
 )
 
 // DefaultConfig holds parsed config file parameters and command-line overrides
@@ -120,6 +123,7 @@ type config struct {
 	Kubernetes KubernetesConfig
 	OvnNorth   rawOvnAuthConfig
 	OvnSouth   rawOvnAuthConfig
+	DaemonsetMode bool
 }
 
 // copy members of struct 'src' into the corresponding field in struct 'dst'

@@ -61,8 +61,23 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 
 	logrus.Infof("Node %s ready for ovn initialization with subnet %s", node.Name, subnet.String())
 
-	if err = setupOVNNode(name, config.Kubernetes.APIServer, config.Kubernetes.Token); err != nil {
-		return err
+	if (!config.DaemonsetMode) {
+		if err = setupOVNNode(name, config.Kubernetes.APIServer, config.Kubernetes.Token); err != nil {
+			return err
+		}
+	} else {
+		// TODO: refactor setOVSExternalIDs to have better code reuse instead of below.
+		args := []string{
+			"set",
+			"Open_vSwitch",
+			".",
+			fmt.Sprintf("external_ids:k8s-api-server=\"%s\"", config.Kubernetes.APIServer),
+			fmt.Sprintf("external_ids:k8s-api-token=\"%s\"", config.Kubernetes.Token),
+		}
+		_, stderr, err := util.RunOVSVsctl(args...)
+		if err != nil {
+			return fmt.Errorf("error setting OVS external IDs: %v\n  %q", err, stderr)
+		}
 	}
 
 	err = util.RestartOvnController()
@@ -88,24 +103,26 @@ func (cluster *OvnClusterController) StartClusterNode(name string) error {
 		}
 	}
 
-	// Install the CNI config file after all initialization is done
-	// MkdirAll() returns no error if the path already exists
-	err = os.MkdirAll(config.CNI.ConfDir, os.ModeDir)
-	if err != nil {
-		return err
-	}
+	if (!config.DaemonsetMode) {
+		// Install the CNI config file after all initialization is done
+		// MkdirAll() returns no error if the path already exists
+		err = os.MkdirAll(config.CNI.ConfDir, os.ModeDir)
+		if err != nil {
+			return err
+		}
 
-	// Always create the CNI config for consistency.
-	cniConf := config.CNI.ConfDir + "/10-ovn-kubernetes.conf"
+		// Always create the CNI config for consistency.
+		cniConf := config.CNI.ConfDir + "/10-ovn-kubernetes.conf"
 
-	var f *os.File
-	f, err = os.OpenFile(cniConf, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+		var f *os.File
+		f, err = os.OpenFile(cniConf, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		confJSON := fmt.Sprintf("{\"name\":\"ovn-kubernetes\", \"type\":\"%s\"}", config.CNI.Plugin)
+		_, err = f.Write([]byte(confJSON))
 	}
-	defer f.Close()
-	confJSON := fmt.Sprintf("{\"name\":\"ovn-kubernetes\", \"type\":\"%s\"}", config.CNI.Plugin)
-	_, err = f.Write([]byte(confJSON))
 
 	return err
 }

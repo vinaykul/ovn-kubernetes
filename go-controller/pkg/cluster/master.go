@@ -9,6 +9,7 @@ import (
 	kapi "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/config"
 	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/ovn"
 	"github.com/openvswitch/ovn-kubernetes/go-controller/pkg/util"
 
@@ -85,18 +86,32 @@ func calculateMasterSwitchNetwork(clusterNetwork string, hostSubnetLength uint32
 
 // SetupMaster calls the external script to create the switch and central routers for the network
 func (cluster *OvnClusterController) SetupMaster(masterNodeName string, masterSwitchNetwork string) error {
-	err := util.StartOVS()
-	if err != nil {
-		return err
-	}
+	if (!config.DaemonsetMode) {
+		err := util.StartOVS()
+		if err != nil {
+			return err
+		}
 
-	err = util.StartOvnNorthd()
-	if err != nil {
-		return err
-	}
+		err = util.StartOvnNorthd()
+		if err != nil {
+			return err
+		}
 
-	if err := setupOVNMaster(masterNodeName); err != nil {
-		return err
+		if err := setupOVNMaster(masterNodeName); err != nil {
+			return err
+		}
+	} else {
+		args := []string{
+			"set",
+			"Open_vSwitch",
+			".",
+			fmt.Sprintf("external_ids:k8s-api-server=\"%s\"", config.Kubernetes.APIServer),
+			fmt.Sprintf("external_ids:k8s-api-token=\"%s\"", config.Kubernetes.Token),
+		}
+		_, stderr, err := util.RunOVSVsctl(args...)
+		if err != nil {
+			return fmt.Errorf("error setting OVS external IDs: %v\n  %q", err, stderr)
+		}
 	}
 
 	// Create a single common distributed router for the cluster.
